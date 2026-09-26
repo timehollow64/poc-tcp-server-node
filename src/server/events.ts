@@ -1,4 +1,4 @@
-import { TCPConn } from "./script";
+import { TCPConn } from "./server";
 import * as net from "node:net";
 
 const onData = (tcpConn: TCPConn): void => {

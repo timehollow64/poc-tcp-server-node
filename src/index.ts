@@ -1,7 +1,7 @@
 import * as net from "net";
-import { newServerConnection } from "./script";
-import { initClientSocket } from "./client";
-import { socketMethods } from "./events";
+import { newServerConnection } from "./server/server";
+import { initClientSocket } from "./client/client";
+import { socketMethods } from "./server/events";
 
 const config = { pauseOnConnect: true };
 const server = net.createServer(config, (s: net.Socket) => {
