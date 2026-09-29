@@ -1,8 +1,9 @@
 import * as net from "net";
 import { initEventListeners, sendToClient, socketMethods } from "./events";
 
+type Socket = net.Socket;
 export type TCPConn = {
-  socket: net.Socket;
+  socket: Socket;
   error: null | Error;
   ended: boolean;
   reader: null | {
@@ -12,9 +13,7 @@ export type TCPConn = {
   pendingReads: Array<(value: Buffer) => void>;
 };
 
-const newServerConnection = async (
-  connectionSocket: net.Socket,
-): Promise<void> => {
+const newServerConnection = async (connectionSocket: Socket): Promise<void> => {
   try {
     await serveClient(connectionSocket);
   } catch (exc) {
@@ -25,7 +24,7 @@ const newServerConnection = async (
   }
 };
 
-const createConnectionObject = (connectionSocket: net.Socket): TCPConn => {
+const createConnectionObject = (connectionSocket: Socket): TCPConn => {
   const tcpConn: TCPConn = {
     socket: connectionSocket,
     reader: null,
@@ -37,7 +36,7 @@ const createConnectionObject = (connectionSocket: net.Socket): TCPConn => {
   return tcpConn;
 };
 
-const serveClient = async (socket: net.Socket): Promise<void> => {
+const serveClient = async (socket: Socket): Promise<void> => {
   const conn: TCPConn = createConnectionObject(socket);
   initEventListeners(conn);
 
