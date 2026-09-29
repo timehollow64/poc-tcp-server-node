@@ -2,16 +2,16 @@ import { TCPConn } from "./server";
 import * as net from "node:net";
 
 const onData = (tcpConn: TCPConn): void => {
-  let { socket, pendingReads } = tcpConn;
+  let { socket } = tcpConn;
 
   socket.on("data", (buffer: Buffer) => {
     const { pauseWhileResolving } = socketMethods(socket);
     pauseWhileResolving();
 
-    const resolvesTo = pendingReads.shift();
-    if (resolvesTo) {
-      resolvesTo(buffer);
+    const reader = tcpConn.reader;
+    if (reader) {
       tcpConn.reader = null;
+      reader.resolvesTo(buffer);
     }
   });
 };
@@ -24,9 +24,9 @@ const onEnd = (tcpConn: TCPConn): void => {
 
     const reader = tcpConn.reader;
     if (reader) {
+      tcpConn.reader = null;
       const EOF = Buffer.from("");
       reader.resolvesTo(EOF);
-      tcpConn.reader = null;
     }
   });
 };
@@ -40,8 +40,8 @@ const onError = (tcpConn: TCPConn) => {
 
     const reader = tcpConn.reader;
     if (reader) {
-      reader.rejectsBecause(err);
       tcpConn.reader = null;
+      reader.rejectsBecause(err);
     }
   });
 };
