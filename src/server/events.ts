@@ -11,7 +11,7 @@ const onData = (tcpConn: TCPConn): void => {
     const reader = tcpConn.reader;
     if (reader) {
       tcpConn.reader = null;
-      reader.resolvesTo(buffer);
+      reader.resolve(buffer);
     }
   });
 };
@@ -26,7 +26,7 @@ const onEnd = (tcpConn: TCPConn): void => {
     if (reader) {
       tcpConn.reader = null;
       const EOF = Buffer.from("");
-      reader.resolvesTo(EOF);
+      reader.resolve(EOF);
     }
   });
 };
@@ -41,7 +41,7 @@ const onError = (tcpConn: TCPConn) => {
     const reader = tcpConn.reader;
     if (reader) {
       tcpConn.reader = null;
-      reader.rejectsBecause(err);
+      reader.reject(err);
     }
   });
 };

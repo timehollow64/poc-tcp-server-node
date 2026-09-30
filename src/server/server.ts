@@ -6,10 +6,7 @@ export type TCPConn = {
   socket: Socket;
   error: null | Error;
   ended: boolean;
-  reader: null | {
-    resolvesTo: (value: Buffer) => void;
-    rejectsBecause: (reason: Error) => void;
-  };
+  reader: null | PromiseWithResolvers<Buffer>;
 };
 
 const newServerConnection = async (connectionSocket: Socket): Promise<void> => {
@@ -50,27 +47,17 @@ const serveClient = async (socket: Socket): Promise<void> => {
 };
 
 const forBuffer = async (conn: TCPConn): Promise<Buffer> => {
-  return new Promise((resolve, reject) => {
-    if (conn.error) {
-      reject(conn.error);
-      return;
-    }
+  if (conn.error) throw conn.error;
+  if (conn.ended) return Buffer.from("");
+  if (conn.reader) throw new Error("concurrent reads are not allowed");
 
-    if (conn.ended) {
-      const EOF = Buffer.from("");
-      resolve(EOF);
-      return;
-    }
+  const { promise, resolve, reject } = Promise.withResolvers<Buffer>();
 
-    if (conn.reader) {
-      reject(new Error("concurrent reads are not allowed"));
-      return;
-    }
+  conn.reader = { resolve, reject, promise };
+  const { resumeConnection } = socketMethods(conn.socket);
+  resumeConnection();
 
-    conn.reader = { resolvesTo: resolve, rejectsBecause: reject };
-    const { resumeConnection } = socketMethods(conn.socket);
-    resumeConnection();
-  });
+  return conn.reader.promise;
 };
 
 export { newServerConnection };

@@ -7,11 +7,7 @@ type TCPListener = {
   server: Server;
   error: null | Error;
   ended: boolean;
-  reader: null | {
-    resolvesTo: (s: net.Socket) => void;
-    rejectsBecause: (reason: Error) => void;
-  };
-  pendingReads: Array<(s: Socket) => void>;
+  reader: null | PromiseWithResolvers<Socket>;
 };
 
 const accceptConnection = async (s: Server) => {
@@ -30,16 +26,16 @@ const createListenerObject = (s: Server): TCPListener => {
     reader: null,
     error: null,
     ended: false,
-    pendingReads: [],
   };
   return TCPListener;
 };
 
 const listensNewConnections = (TCPListener: TCPListener) => {
   TCPListener.server.on("connection", (s: Socket) => {
-    const resolver = TCPListener.pendingReads.shift();
-    if (resolver) {
-      resolver(s);
+    const reader = TCPListener.reader;
+    if (reader) {
+      TCPListener.reader = null;
+      reader.resolve(s);
     }
   });
 };
@@ -50,7 +46,7 @@ const onError = (tCPListener: TCPListener) => {
 
     const reader = tCPListener.reader;
     if (reader) {
-      reader.rejectsBecause(err);
+      reader.reject(err);
       tCPListener.reader = null;
     }
   });
@@ -66,14 +62,12 @@ const serveListening = async (server: Server) => {
 };
 
 const forSocket = async (tCPListener: TCPListener): Promise<Socket> => {
-  return new Promise((resolve, reject) => {
-    if (tCPListener.error) {
-      reject();
-      return;
-    }
+  if (tCPListener.error) throw tCPListener.error;
+  const { promise, resolve, reject } = Promise.withResolvers<Socket>();
+  if (tCPListener.reader) throw new Error("concurrent reads are not allowed");
 
-    tCPListener.pendingReads.push(resolve);
-  });
+  tCPListener.reader = { promise, resolve, reject };
+  return tCPListener.reader.promise;
 };
 
 const initListeningEvents = (tCPListener: TCPListener) => {
