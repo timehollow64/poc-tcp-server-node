@@ -1,73 +1,40 @@
-import { TCPConn } from "./server";
+import { on } from "node:events";
 import * as net from "node:net";
 
-const onData = (tcpConn: TCPConn): void => {
-  let { socket } = tcpConn;
+const sendToClient = async (
+  socket: net.Socket,
+  buffer: Buffer,
+): Promise<void> => {
+  const { promise, resolve, reject } = Promise.withResolvers<void>();
 
-  socket.on("data", (buffer: Buffer) => {
-    const { pauseWhileResolving } = socketMethods(socket);
-    pauseWhileResolving();
-
-    const reader = tcpConn.reader;
-    if (reader) {
-      tcpConn.reader = null;
-      reader.resolve(buffer);
+  socket.write(buffer, (err?: Error | null | undefined) => {
+    if (err) {
+      reject(err);
+    } else {
+      console.log(`"envío esto:" ${buffer}`);
+      resolve();
     }
   });
+
+  return promise;
 };
 
-const onEnd = (tcpConn: TCPConn): void => {
-  let { socket } = tcpConn;
-
-  socket.on("end", () => {
-    tcpConn.ended = true;
-
-    const reader = tcpConn.reader;
-    if (reader) {
-      tcpConn.reader = null;
-      const EOF = Buffer.from("");
-      reader.resolve(EOF);
-    }
-  });
+const handleClient = async (socket: net.Socket): Promise<void> => {
+  try {
+    await serveData(socket);
+  } catch (exc) {
+    console.error("exception:", exc);
+  } finally {
+    socket.destroy();
+  }
 };
 
-const onError = (tcpConn: TCPConn) => {
-  let { socket } = tcpConn;
+const serveData = async (socket: net.Socket): Promise<void> => {
+  const chunks = on(socket, "data", { close: ["end"], highWaterMark: 16 });
 
-  socket.on("error", (err: Error) => {
-    console.error("ERROR - REJECTED");
-    tcpConn.error = err;
-
-    const reader = tcpConn.reader;
-    if (reader) {
-      tcpConn.reader = null;
-      reader.reject(err);
-    }
-  });
-};
-
-const sendToClient = async (conn: TCPConn, buffer: Buffer): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    if (conn.error) {
-      reject(conn.error);
-      return;
-    }
-
-    conn.socket.write(buffer, (err?: Error | null | undefined) => {
-      if (err) {
-        reject(err);
-      } else {
-        console.log(`"envío esto:" ${buffer}`);
-        resolve();
-      }
-    });
-  });
-};
-
-const initEventListeners = (tcpConn: TCPConn): void => {
-  onData(tcpConn);
-  onError(tcpConn);
-  onEnd(tcpConn);
+  for await (const [buffer] of chunks) {
+    console.log("Captured Buffer:", buffer, "String: ", buffer.toString());
+  }
 };
 
 const socketMethods = (s: net.Socket) => {
@@ -89,4 +56,4 @@ const socketMethods = (s: net.Socket) => {
   };
 };
 
-export { initEventListeners, sendToClient, socketMethods };
+export { sendToClient, socketMethods, handleClient };

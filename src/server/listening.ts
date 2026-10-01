@@ -1,78 +1,27 @@
+import { on } from "node:events";
 import * as net from "net";
+import { newServerConnection } from "./server";
+import { handleClient } from "./events";
 
-type Socket = net.Socket;
 type Server = net.Server;
 
-type TCPListener = {
-  server: Server;
-  error: null | Error;
-  ended: boolean;
-  reader: null | PromiseWithResolvers<Socket>;
-};
-
-const accceptConnection = async (s: Server) => {
+const accceptConnection = async (server: Server) => {
   try {
-    await serveListening(s);
+    await serveListening(server);
   } catch (exc) {
     console.error(exc);
   } finally {
-    s.close();
+    server.close();
   }
-};
-
-const createListenerObject = (s: Server): TCPListener => {
-  const TCPListener: TCPListener = {
-    server: s,
-    reader: null,
-    error: null,
-    ended: false,
-  };
-  return TCPListener;
-};
-
-const listensNewConnections = (TCPListener: TCPListener) => {
-  TCPListener.server.on("connection", (s: Socket) => {
-    const reader = TCPListener.reader;
-    if (reader) {
-      TCPListener.reader = null;
-      reader.resolve(s);
-    }
-  });
-};
-
-const onError = (tCPListener: TCPListener) => {
-  tCPListener.server.on("error", (err: Error) => {
-    tCPListener.error = err;
-
-    const reader = tCPListener.reader;
-    if (reader) {
-      reader.reject(err);
-      tCPListener.reader = null;
-    }
-  });
 };
 
 const serveListening = async (server: Server) => {
-  const tCPListener = createListenerObject(server);
-  initListeningEvents(tCPListener);
+  const connections = on(server, "connection", { close: ["close"] });
 
-  while (true) {
-    await forSocket(tCPListener);
+  for await (const [socket] of connections) {
+    void newServerConnection(socket);
+    void handleClient(socket);
   }
-};
-
-const forSocket = async (tCPListener: TCPListener): Promise<Socket> => {
-  if (tCPListener.error) throw tCPListener.error;
-  const { promise, resolve, reject } = Promise.withResolvers<Socket>();
-  if (tCPListener.reader) throw new Error("concurrent reads are not allowed");
-
-  tCPListener.reader = { promise, resolve, reject };
-  return tCPListener.reader.promise;
-};
-
-const initListeningEvents = (tCPListener: TCPListener) => {
-  listensNewConnections(tCPListener);
-  onError(tCPListener);
 };
 
 export { accceptConnection };
