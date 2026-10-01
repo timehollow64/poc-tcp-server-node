@@ -18,7 +18,6 @@ const serveClient = async (socket: Socket): Promise<void> => {
   for await (const buffer of socket) {
     await sendToClient(socket, buffer);
   }
-  console.log("end connection");
 };
 
 export { newServerConnection };
